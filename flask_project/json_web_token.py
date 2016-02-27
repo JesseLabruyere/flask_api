@@ -3,46 +3,60 @@ from werkzeug.security import safe_str_cmp, generate_password_hash, check_passwo
 
 # the SQLAlchemy database object that is used is stored here
 db = None
+# the jwt object
+jwt = None
 
 
-# this class initialises the json web token security
-class JWTInitializer(object):
-    # initialize json web token and make the object global accessible (jwt)
-    def __init__(self, app, secret, database):
-        self.set_secret_key(app, secret)
-        self.jwt = JWT(app, authenticate, identity)
-        db = database
-        global db
+# initialises the json web token security
+def init(app, secret, database):
+    set_secret_key(app, secret)
+    jwt = JWT(app, authenticate, identity)
+    global jwt
+    db = database
+    global db
 
-    # adding the secret key to app
-    def set_secret_key(self, app, secret):
-        app.config['SECRET_KEY'] = secret
 
-    # getting the JWT object
-    def get_jwt(self):
-        return self.jwt
+# adding the secret key to app
+def set_secret_key(app, secret):
+    app.config['SECRET_KEY'] = secret
 
 
 # the user class, SQLAlchemy orm class
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True)
-    pw_hash = db.Column(db.String(120), unique=False)
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    username = db.Column(db.String(80), unique=False, nullable=False)
+    email = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), unique=False, nullable=False)
+    access_type_id = db.Column(db.Integer, db.ForeignKey('access_type.id'), nullable=False)
+    access_type = db.relationship('AccessType', backref=db.backref('users', lazy='dynamic'))
 
-    def __init__(self, id, username, password):
+    def __init__(self, id, email, username, password):
         self.id = id
+        self.email = email
         self.username = username
         self.set_password(password)
 
     def set_password(self, password):
         # TODO safe enough?
-        self.pw_hash = generate_password_hash(password)
+        self.password = generate_password_hash(password)
 
     def check_password(self, password):
-        return check_password_hash(self.pw_hash, password)
+        return check_password_hash(self.password, password)
 
-    def __str__(self):
-        return "User(id='%s')" % self.id
+    def __repr__(self):
+        return '<User %r, %r>' % self.id, self.username
+
+
+# this class describes the access type that can be linked to users
+class AccessType(db.Model):
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return '<Category %r, %r>' % self.id, self.name
 
 
 # class that contains some static query methods
@@ -70,9 +84,15 @@ def identity(payload):
     return User.query.filter_by(id=user_id).first()
 
 
-# adds a single user to the db and returns a user object
+# adds a single user to the db and returns a User object
 def add_user(username, password):
     user = User(username, password)
     db.session.add(user)
     db.session.commit(user)
     return user
+
+
+# method that checks if the current User has the right access type
+def has_access_type(required_type):
+    access_type = current_identity.access_type
+    return required_type == access_type
