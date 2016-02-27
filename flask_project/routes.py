@@ -28,10 +28,11 @@ def jwt_protected():
 def add_user():
     form = UserForm(request.form)
     if request.method == 'POST' and form.validate():
-        user = User(None, form.email.data, form.username.data, form.password.data)
-        db.add(user)
+        user = User(None, form.email.data, form.username.data, form.password.data, None)
+        db.session.add(user)
+        db.session.commit()
         flash('Thanks for registering')
-        return redirect(url_for('login'))
+        return redirect(url_for('jwt_protected'))
     return render_template(form.template, form=form)
 
 

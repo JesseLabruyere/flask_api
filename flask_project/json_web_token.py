@@ -30,11 +30,13 @@ class User(db.Model):
     access_type_id = db.Column(db.Integer, db.ForeignKey('access_type.id'), nullable=False)
     access_type = db.relationship('AccessType', backref=db.backref('users', lazy='dynamic'))
 
-    def __init__(self, id, email, username, password):
+    def __init__(self, id, email, username, password, access_type_id, access_type):
         self.id = id
         self.email = email
         self.username = username
         self.set_password(password)
+        self.access_type_id = access_type_id
+        self.access_type = access_type
 
     def set_password(self, password):
         # TODO safe enough?
@@ -92,7 +94,14 @@ def add_user(username, password):
     return user
 
 
-# method that checks if the current User has the right access type
-def has_access_type(required_type):
-    access_type = current_identity.access_type
-    return required_type == access_type
+# method that checks if the current User complies with the given access types
+def has_access_type(access_type):
+    user_access_type = current_identity.access_type
+    # check if a list of requirements is given
+    if isinstance(access_type, list):
+        for item in access_type:
+            if user_access_type == item:
+                return True
+        return False
+    else:
+        return user_access_type == access_type
